@@ -59,7 +59,7 @@ function createWindow() {
 
   // 初始加载主界面
   loadMainInterface()
-  
+
   // 打开开发者工具
   // mainWindow.webContents.openDevTools()
 }
@@ -78,7 +78,7 @@ function loadMainInterface() {
 async function displayPdfInMainWindow(file_url, file_key) {
   console.log('[displayPdfInMainWindow] file_url:', file_url)
   console.log('[displayPdfInMainWindow] file_key:', file_key)
-  
+
   // 主进程下载并解密PDF，生成本地临时文件
   let localFileUrl = ''
   try {
@@ -95,7 +95,7 @@ async function displayPdfInMainWindow(file_url, file_key) {
     mainWindow.webContents.send('pdf-error', '无法加载PDF文件')
     return
   }
-  
+
   // 更新主窗口中的PDF显示
   mainWindow.webContents.send('pdf-load', localFileUrl)
 }
@@ -141,7 +141,7 @@ function handleCustomProtocol(url) {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
-  
+
   // 注册自定义协议处理
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
@@ -152,7 +152,7 @@ app.whenReady().then(() => {
     console.log('[app.whenReady] 注册powermis协议')
     app.setAsDefaultProtocolClient('powermis')
   }
-  
+
   // 确保应用只运行一个实例
   const gotTheLock = app.requestSingleInstanceLock()
   if (!gotTheLock) {
@@ -161,8 +161,10 @@ app.whenReady().then(() => {
   } else {
     app.on('second-instance', (event, commandLine, workingDirectory) => {
       console.log('[second-instance] commandLine:', commandLine)
-      if (commandLine.length > 1) {
-        handleCustomProtocol(commandLine[1])
+      // 遍历命令行参数，找到以powermis://开头的URL
+      const url = commandLine.find(arg => arg.startsWith('powermis://'));
+      if (url) {
+        handleCustomProtocol(url); // 只处理有效的协议URL
       }
       // 如果应用已经运行，聚焦到主窗口
       if (mainWindow) {
@@ -171,20 +173,20 @@ app.whenReady().then(() => {
       }
     })
   }
-  
+
   app.on('open-url', (event, url) => {
     console.log('[open-url] event, url:', url)
     event.preventDefault()
     handleCustomProtocol(url)
   })
-  
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-  
+
   // 处理渲染进程消息
   ipcMain.on('ping', () => console.log('pong'))
-  
+
   // 测试打印窗口加载
   ipcMain.handle('test-print-load', async (event, fileUrl) => { // 接收fileUrl参数
     console.log("测试打印窗口加载, fileUrl:", fileUrl);
@@ -207,12 +209,12 @@ app.whenReady().then(() => {
       await new Promise((resolve, reject) => {
         // 页面加载成功
         printWin.webContents.on('did-finish-load', resolve);
-        
+
         // 页面加载失败
         printWin.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
           reject(new Error(`页面加载失败：${errorDescription}（错误码：${errorCode}）`));
         });
-        
+
         // 加载页面（捕获加载错误）
         printWin.loadURL(printPageUrl).catch(reject);
       });
@@ -267,12 +269,12 @@ app.whenReady().then(() => {
       await new Promise((resolve, reject) => {
         // 页面加载成功
         printWin.webContents.on('did-finish-load', resolve);
-        
+
         // 页面加载失败
         printWin.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
           reject(new Error(`页面加载失败：${errorDescription}（错误码：${errorCode}）`));
         });
-        
+
         // 加载页面（捕获加载错误）
         printWin.loadURL(printPageUrl).catch(reject);
       });
@@ -291,7 +293,7 @@ app.whenReady().then(() => {
             printWin.close();
             printWin = null;
           }
-          
+
           // 返回打印结果
           if (success) {
             resolve({ success: true, message: '打印成功' });
@@ -306,7 +308,7 @@ app.whenReady().then(() => {
         printWin.close();
         printWin = null;
       }
-      
+
       // 返回错误信息
       return { success: false, error: error.message };
     }
@@ -318,7 +320,7 @@ app.whenReady().then(() => {
       const allWins = BrowserWindow.getAllWindows();
       // 找到一个可用的窗口（未被销毁且有webContents）
       const anyWin = allWins.find(w => !w.isDestroyed() && w.webContents);
-      
+
       if (anyWin) {
         // 调用异步方法获取打印机列表，需要await
         const printers = await anyWin.webContents.getPrintersAsync();
@@ -338,7 +340,7 @@ app.whenReady().then(() => {
   });
 
   createWindow()
-  
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
