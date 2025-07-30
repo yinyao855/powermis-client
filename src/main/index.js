@@ -325,7 +325,13 @@ app.whenReady().then(() => {
             printBackground: true,
             deviceName: printOptions.printer || '',
             copies: printOptions.copies || 1,
-            duplexMode: printOptions.duplex === 'duplex' ? 'longEdge' : 'simplex'
+            duplexMode: printOptions.duplex === 'duplex' ? 'longEdge' : 'simplex',
+            pageRanges: '', // 打印所有页面
+            printSelectionOnly: false, // 不限制选择区域
+            // landscape: false, // 纵向打印
+            margins: {
+              marginType: 'printableArea'
+            }
           },
           (success, errorType) => {
             // 关闭窗口

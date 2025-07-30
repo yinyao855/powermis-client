@@ -13,13 +13,19 @@
     }
     #pdf-container {
       width: 100%;
-      height: 100%;
+      min-height: 100%;
       position: relative;
+      overflow-y: auto;
+      padding: 20px;
+      box-sizing: border-box;
     }
     .pdf-page {
       margin: 0 auto;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      margin-bottom: 10px;
+      margin-bottom: 20px;
+      display: block;
+      max-width: 100%;
+      height: auto;
     }
     /* 打印样式 */
     @media print {
@@ -28,14 +34,29 @@
         width: 100% !important;
         height: auto !important;
         position: static;
+        padding: 0 !important;
+        overflow: visible !important;
+        margin: 0 !important;
       }
       .pdf-page {
-        box-shadow: none;
-        margin-bottom: 0;
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
         page-break-after: always;
+        page-break-inside: avoid;
+        max-width: none !important;
+        width: 100% !important;
+        height: auto !important;
+        display: block !important;
+        float: none !important;
       }
       .pdf-page:last-child {
         page-break-after: avoid;
+      }
+      /* 确保每页都是独立的 */
+      @page {
+        margin: 0;
+        size: auto;
       }
     }
   </style>
@@ -46,17 +67,16 @@
   <script type="module">
     // 导入pdf.js
     import * as pdfjsLib from './pdfjs/build/pdf.mjs';
-    
+
     // 获取PDF文件URL
     const urlParams = new URLSearchParams(window.location.search);
     const fileUrl = urlParams.get('file');
-    
+
     if (!fileUrl) {
       console.error('未获取到PDF文件地址');
       if (window.electron?.ipcRenderer) {
         window.electron.ipcRenderer.send('pdf-load-error', '未找到PDF文件');
       }
-      return;
     }
 
     // 设置pdf.js的worker路径
@@ -66,52 +86,75 @@
     async function renderPDF() {
       try {
         console.log('开始加载PDF:', fileUrl);
-        
+
         // 加载PDF文档
         const loadingTask = pdfjsLib.getDocument(fileUrl);
         const pdf = await loadingTask.promise;
-        
+
         console.log('PDF加载成功，页数:', pdf.numPages);
-        
+        console.log('PDF文件URL:', fileUrl);
+        console.log('PDF文档信息:', {
+          numPages: pdf.numPages,
+          fingerprint: pdf.fingerprint,
+          info: pdf.info
+        });
+
         const container = document.getElementById('pdf-container');
         const pagePromises = [];
-        
+
         // 渲染所有页面
+        console.log(`准备渲染 ${pdf.numPages} 页`);
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          const page = await pdf.getPage(pageNum);
+          console.log(`开始渲染第 ${pageNum} 页，总共 ${pdf.numPages} 页`);
           
-          // 设置缩放比例以适应打印
-          const viewport = page.getViewport({ scale: 1.0 });
+          const page = await pdf.getPage(pageNum);
+
+          // 获取设备像素比，确保高DPI显示
+          const devicePixelRatio = window.devicePixelRatio || 1;
+
+          // 设置更高的缩放比例以确保打印质量
+          const scale = 1.5; // 适中的缩放比例，确保打印质量
+          const viewport = page.getViewport({ scale: scale });
+
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
-          
-          // 设置canvas尺寸
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
+
+          // 设置canvas尺寸（考虑设备像素比）
+          canvas.width = viewport.width * devicePixelRatio;
+          canvas.height = viewport.height * devicePixelRatio;
+          canvas.style.width = viewport.width + 'px';
+          canvas.style.height = viewport.height + 'px';
           canvas.className = 'pdf-page';
-          
+          canvas.style.display = 'block';
+          canvas.style.pageBreakAfter = 'always';
+          canvas.style.pageBreakInside = 'avoid';
+
+          // 设置canvas的缩放
+          context.scale(devicePixelRatio, devicePixelRatio);
+
           // 渲染页面到canvas
           const renderContext = {
             canvasContext: context,
             viewport: viewport
           };
-          
+
           const renderTask = page.render(renderContext);
           pagePromises.push(renderTask.promise);
-          
+
           container.appendChild(canvas);
+          console.log(`第 ${pageNum} 页已添加到容器`);
         }
-        
+
         // 等待所有页面渲染完成
         await Promise.all(pagePromises);
-        
+
         console.log('所有页面渲染完成');
-        
+
         // 通知主进程PDF已加载完成
         if (window.electron?.ipcRenderer) {
           window.electron.ipcRenderer.send('pdf-loaded');
         }
-        
+
       } catch (error) {
         console.error('PDF渲染失败:', error);
         if (window.electron?.ipcRenderer) {
