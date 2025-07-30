@@ -46,22 +46,16 @@ const errorMessage = ref('')
 const showPrintDialog = ref(false)
 
 // 计算iframe的PDF查看器路径
-// const iframeSrc = computed(() =>
-//   fileUrl.value && !errorMessage.value
-//     ? `/pdfjs/web/viewer.html?file=${encodeURIComponent(fileUrl.value)}`
-//     : ''
-// )
-// PdfReader.vue 的 <script setup> 中
 const iframeSrc = computed(() => {
   if (fileUrl.value && !errorMessage.value) {
     // 开发环境：根路径（/pdfjs → 对应 public/pdfjs）
     // 生产环境：相对路径（./pdfjs → 对应 dist/pdfjs，与 index.html 同级）
-    const base = import.meta.env.DEV ? '/' : './'; 
-    return `${base}pdfjs/web/viewer.html?file=${encodeURIComponent(fileUrl.value)}`;
+    const base = import.meta.env.DEV ? '/' : './'
+    return `${base}pdfjs/web/viewer.html?file=${encodeURIComponent(fileUrl.value)}`
   } else {
-    return '';
+    return ''
   }
-});
+})
 
 // 处理打印按钮点击
 function handlePrint() {
@@ -74,24 +68,24 @@ async function onPrint(params) {
     try {
       // 调用静默打印接口并等待结果
       const printResult = await ipcRenderer.invoke('silent-print', fileUrl.value, params)
-      
+
       // 根据返回结果显示提示
       if (!printResult.success) {
         // 打印失败时显示错误信息
-        alert(`打印失败：${printResult.error}`);
+        alert(`打印失败：${printResult.error}`)
       } else {
         // 可选：打印成功时也可以显示提示
         // alert(printResult.message);
         // 关闭打印对话框
-        showPrintDialog.value = false;
+        showPrintDialog.value = false
       }
     } catch (err) {
       // 捕获调用过程中的异常（如接口调用失败）
-      alert(`打印请求失败：${err.message || '未知错误'}`);
+      alert(`打印请求失败：${err.message || '未知错误'}`)
     }
   } else {
     // 没有文件路径时的提示
-    alert('没有可打印的PDF文件');
+    alert('没有可打印的PDF文件')
   }
 }
 
@@ -210,7 +204,8 @@ onUnmounted(() => {
   background: #222;
 }
 /* 空内容和错误提示美化 */
-.empty-tip, .error-tip {
+.empty-tip,
+.error-tip {
   display: flex;
   flex-direction: column;
   align-items: center;

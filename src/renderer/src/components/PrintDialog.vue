@@ -14,74 +14,47 @@
       <template v-if="!isLoadingPrinters && !printerError">
         <div class="form-item">
           <label>打印机：</label>
-          <select 
-            v-model="printer" 
-            :disabled="printers.length === 0"
-            class="form-control"
-          >
+          <select v-model="printer" :disabled="printers.length === 0" class="form-control">
             <!-- 有打印机时渲染列表 -->
-            <option 
-              v-for="p in printers" 
-              :key="p.name" 
-              :value="p.name"
-            >
-              {{ p.name }} 
+            <option v-for="p in printers" :key="p.name" :value="p.name">
+              {{ p.name }}
               <!-- 状态提示（可选，若主进程返回了状态） -->
-              <span 
-                class="printer-status" 
-                :class="{ 
-                  online: p.statusText === '在线', 
-                  offline: p.statusText === '离线' 
+              <span
+                class="printer-status"
+                :class="{
+                  online: p.statusText === '在线',
+                  offline: p.statusText === '离线'
                 }"
               >
                 ({{ p.statusText }})
               </span>
             </option>
             <!-- 无打印机时兜底 -->
-            <option 
-              v-if="printers.length === 0" 
-              value="" 
-              disabled
-            >
-              无可用打印机
-            </option>
+            <option v-if="printers.length === 0" value="" disabled>无可用打印机</option>
           </select>
         </div>
         <div class="form-item">
           <label>份数：</label>
-          <input 
-            type="number" 
-            v-model.number="copies" 
-            min="1" 
+          <input
+            v-model.number="copies"
+            type="number"
+            min="1"
             :disabled="printers.length === 0"
             class="form-control"
           />
         </div>
         <div class="form-item">
           <label>单双面：</label>
-          <select 
-            v-model="duplex" 
-            :disabled="printers.length === 0"
-            class="form-control"
-          >
+          <select v-model="duplex" :disabled="printers.length === 0" class="form-control">
             <option value="simplex">单面</option>
             <option value="duplex">双面</option>
           </select>
         </div>
         <div class="button-row">
-          <button 
-            @click="onPrint" 
-            :disabled="printers.length === 0"
-            class="btn confirm-btn"
-          >
+          <button :disabled="printers.length === 0" class="btn confirm-btn" @click="onPrint">
             确定
           </button>
-          <button 
-            @click="$emit('close')" 
-            class="btn cancel-btn"
-          >
-            取消
-          </button>
+          <button class="btn cancel-btn" @click="$emit('close')">取消</button>
         </div>
       </template>
     </div>
@@ -89,7 +62,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 
 // 打印机列表 & 状态
 const printers = ref([])
@@ -106,11 +79,10 @@ onMounted(async () => {
   if (window.electron && window.electron.ipcRenderer) {
     try {
       isLoadingPrinters.value = true
-      const printerList = await window.electron.ipcRenderer.invoke('get-printers')
-      printers.value = printerList
+      printers.value = await window.electron.ipcRenderer.invoke('get-printers')
       // 优先选默认打印机
-      const defaultPrinter = printers.value.find(p => p.isDefault)
-      printer.value = defaultPrinter ? defaultPrinter.name : (printers.value[0]?.name || '')
+      const defaultPrinter = printers.value.find((p) => p.isDefault)
+      printer.value = defaultPrinter ? defaultPrinter.name : printers.value[0]?.name || ''
     } catch (err) {
       printerError.value = `获取打印机失败：${err.message || '未知错误'}`
       console.error('获取打印机列表失败：', err)
@@ -145,17 +117,17 @@ async function testPrintLoad() {
     const fileUrl = 'https://arxiv.org/pdf/2507.22052.pdf' // 测试用的PDF文件URL;
     try {
       // 传递 fileUrl 给主进程
-      const result = await window.electron.ipcRenderer.invoke('test-print-load', fileUrl); 
+      const result = await window.electron.ipcRenderer.invoke('test-print-load', fileUrl)
       if (result.success) {
-        console.log('测试打印加载成功');
+        console.log('测试打印加载成功')
       } else {
-        console.error('测试打印加载失败：', result.error);
+        console.error('测试打印加载失败：', result.error)
       }
     } catch (err) {
-      console.error('测试打印加载失败：', err);
+      console.error('测试打印加载失败：', err)
     }
   } else {
-    console.warn('无法连接到打印服务');
+    console.warn('无法连接到打印服务')
   }
 }
 </script>
@@ -163,12 +135,15 @@ async function testPrintLoad() {
 <style scoped>
 /* 遮罩层 */
 .print-dialog-mask {
-  position: fixed; 
-  left: 0; top: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.3); 
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
   z-index: 9999;
-  display: flex; 
-  align-items: center; 
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 
@@ -178,7 +153,7 @@ async function testPrintLoad() {
   padding: 24px 32px;
   border-radius: 8px;
   min-width: 400px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   gap: 20px;

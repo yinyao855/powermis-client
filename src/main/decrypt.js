@@ -9,8 +9,7 @@ function decrypt(data, key) {
   // ECB模式iv必须为null
   const decipher = crypto.createDecipheriv(algorithm, keyBuffer, null)
   decipher.setAutoPadding(true)
-  const decrypted = Buffer.concat([decipher.update(data), decipher.final()])
-  return decrypted
+  return Buffer.concat([decipher.update(data), decipher.final()])
 }
 
 // 将字节数组转换为整数
@@ -33,8 +32,7 @@ export function decryptPdf(pdfBuffer, fileKey) {
     console.log(encryptedSize, fileKey)
     const decrypted = decrypt(encrypted, fileKey)
     // 组合解密后的数据和剩余数据
-    const result = Buffer.concat([decrypted, tail])
-    return result
+    return Buffer.concat([decrypted, tail])
   } catch (error) {
     console.error('PDF解密失败:', error)
     throw new Error('PDF解密失败: ' + error.message)
