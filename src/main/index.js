@@ -61,7 +61,7 @@ function createWindow() {
   loadMainInterface()
 
   // 打开开发者工具
-  mainWindow.webContents.openDevTools()
+  // mainWindow.webContents.openDevTools()
 }
 
 // 加载主界面（无PDF状态）
@@ -254,7 +254,8 @@ app.whenReady().then(() => {
       printWin = new BrowserWindow({
         width: 900,
         height: 1200,
-        show: true, // 临时设为true用于调试，生产环境改为false
+        show: true, // 为false不知道为什么有问题
+        autoHideMenuBar: true,
         webPreferences: {
           preload: join(__dirname, '../preload/index.js'),
           sandbox: false,
@@ -265,7 +266,7 @@ app.whenReady().then(() => {
       })
 
       // 打开开发者工具用于调试
-      printWin.webContents.openDevTools()
+      // printWin.webContents.openDevTools()
 
       // 加载打印页面
       const printPageUrl = `file://${path.join(__dirname, '../renderer/print.html')}?file=${encodeURIComponent(fileUrl)}`
