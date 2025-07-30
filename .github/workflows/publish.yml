@@ -1,0 +1,80 @@
+name: Publish PowerMIS Reader
+
+on:
+  push:
+    branches:
+      - main  # 监听main分支推送
+  tags:
+    - v*.*.*  # 监听语义化版本标签（如v1.0.0）
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        arch: [x64]
+        include:
+          - os: macos-latest
+            arch: arm64  # 额外构建macOS ARM版本
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'  # 缓存npm依赖
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Install Linux dependencies (for AppImage/snap/deb)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wine64 fakeroot rpm patchelf
+
+      - name: Build and package app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          # 根据平台和架构设置环境变量
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            if [ "${{ matrix.arch }}" = "arm64" ]; then
+              export ARCH="arm64"
+            else
+              export ARCH="x64"
+            fi
+          else
+            export ARCH="${{ matrix.arch }}"
+          fi
+
+          # 执行打包命令
+          npx electron-builder build --${{ matrix.os }} --${{ matrix.arch }} \
+            --publish ${{ github.event_name == 'tag' && 'always' || 'never' }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-builds-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.snap

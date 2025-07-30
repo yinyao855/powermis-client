@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>打印PDF</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #fff; }
+    #print-pdf { width: 100vw; height: 100vh; border: none; }
+  </style>
+</head>
+<body>
+  <iframe id="print-pdf"></iframe>
+  <script>
+    // 获取file参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileUrl = urlParams.get('file');
+    if (fileUrl) {
+      const iframe = document.getElementById('print-pdf');
+      iframe.src = fileUrl;
+      iframe.onload = function() {
+        setTimeout(() => {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        }, 300);
+      };
+    }
+  </script>
+</body>
+</html> 
