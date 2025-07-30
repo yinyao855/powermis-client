@@ -762,11 +762,15 @@ See https://github.com/adobe-type-tools/cmap-resources
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
   </body>
-<!-- <script>
-  window.print = function() {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'custom-print' }, '*');
+<script>
+  // 监听来自print.html的消息
+  window.addEventListener('message', (event) => {
+    if (event.data.type === 'listenForLoad') {
+      // 当PDF文档加载完成后，发送消息给print.html
+      document.addEventListener('documentloaded', () => {
+        event.source.postMessage({ type: 'documentloaded' }, '*');
+      });
     }
-  };
-</script> -->
+  });
+</script>
 </html>

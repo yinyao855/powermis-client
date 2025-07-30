@@ -61,7 +61,7 @@ function createWindow() {
   loadMainInterface()
 
   // 打开开发者工具
-  // mainWindow.webContents.openDevTools()
+  mainWindow.webContents.openDevTools()
 }
 
 // 加载主界面（无PDF状态）
@@ -204,7 +204,7 @@ app.whenReady().then(() => {
       })
 
       // 加载打印页面（包含PDF内容），使用传入的fileUrl
-      let printPageUrl = `file://${path.join(__dirname, '../../resources/print.html')}?file=${encodeURIComponent(fileUrl)}`
+      let printPageUrl = `file://${path.join(__dirname, '../renderer/print.html')}?file=${encodeURIComponent(fileUrl)}`
 
       // 等待页面加载完成（使用Promise封装事件）
       await new Promise((resolve, reject) => {
@@ -237,7 +237,6 @@ app.whenReady().then(() => {
       const allWins = BrowserWindow.getAllWindows()
       const anyWin = allWins.find((w) => !w.isDestroyed() && w.webContents)
       if (anyWin) {
-        // 正确使用await获取打印机列表
         const printers = await anyWin.webContents.getPrintersAsync()
         if (printers.length === 0) {
           return { success: false, error: '无可用打印机' }
@@ -246,58 +245,95 @@ app.whenReady().then(() => {
         return { success: false, error: '无法访问浏览器窗口' }
       }
 
-      // 如果已有打印窗口，先关闭
+      // 关闭已有打印窗口
       if (printWin && !printWin.isDestroyed()) {
         printWin.close()
       }
 
-      // 创建隐藏的打印窗口（不显示）
+      // 创建隐藏的打印窗口
       printWin = new BrowserWindow({
         width: 900,
         height: 1200,
-        show: false, // 关键：窗口不显示
+        show: true, // 临时设为true用于调试，生产环境改为false
         webPreferences: {
+          preload: join(__dirname, '../preload/index.js'),
           sandbox: false,
-          webSecurity: false, // 允许加载本地文件
-          allowRunningInsecureContent: true
+          webSecurity: false,
+          allowRunningInsecureContent: true,
+          contextIsolation: false
         }
       })
 
-      // 加载打印页面（包含PDF内容）
-      let printPageUrl = `file://${path.join(__dirname, '../../resources/print.html')}?file=${encodeURIComponent(fileUrl)}`
+      // 打开开发者工具用于调试
+      printWin.webContents.openDevTools()
 
-      // 等待页面加载完成（使用Promise封装事件）
+      // 加载打印页面
+      const printPageUrl = `file://${path.join(__dirname, '../renderer/print.html')}?file=${encodeURIComponent(fileUrl)}`
+
+      // 等待PDF加载完成
       await new Promise((resolve, reject) => {
-        // 页面加载成功
-        printWin.webContents.on('did-finish-load', resolve)
+        let timeoutTimer
 
-        // 页面加载失败
-        printWin.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
+        const onPdfLoaded = () => {
+          console.log('PDF加载完成，准备打印')
+          cleanup()
+          resolve()
+        }
+
+        const onPdfLoadError = (event, errorMsg) => {
+          console.log('PDF加载错误: ' + errorMsg)
+          cleanup()
+          reject(new Error(`PDF加载失败：${errorMsg}`))
+        }
+
+        const onPageLoadFail = (_, errorCode, errorDescription) => {
+          console.log('页面加载失败: ', errorCode)
+          cleanup()
           reject(new Error(`页面加载失败：${errorDescription}（错误码：${errorCode}）`))
-        })
+        }
 
-        // 加载页面（捕获加载错误）
-        printWin.loadURL(printPageUrl).catch(reject)
+        const cleanup = () => {
+          ipcMain.removeListener('pdf-loaded', onPdfLoaded)
+          ipcMain.removeListener('pdf-load-error', onPdfLoadError)
+          printWin.webContents.removeListener('did-fail-load', onPageLoadFail)
+          clearTimeout(timeoutTimer)
+        }
+
+        // 注册监听器
+        ipcMain.once('pdf-loaded', onPdfLoaded)
+        ipcMain.once('pdf-load-error', onPdfLoadError)
+        printWin.webContents.once('did-fail-load', onPageLoadFail)
+
+        // 超时保护
+        timeoutTimer = setTimeout(() => {
+          cleanup()
+          reject(new Error('PDF加载超时（10秒）'))
+        }, 10000)
+
+        // 加载页面
+        printWin.loadURL(printPageUrl).catch((err) => {
+          cleanup()
+          reject(new Error(`页面加载失败：${err.message}`))
+        })
       })
 
-      // 页面加载完成后执行打印（使用Promise封装回调）
+      // 执行打印
       return await new Promise((resolve, reject) => {
         printWin.webContents.print(
           {
-            silent: true, // 静默打印（无对话框）
-            printBackground: true, // 打印背景（如PDF背景色）
-            deviceName: printOptions.printer || '', // 指定打印机（可选）
-            copies: printOptions.copies || 1, // 打印份数
-            duplexMode: printOptions.duplex === 'duplex' ? 'longEdge' : 'simplex' // 双面/单面
+            silent: true,
+            printBackground: true,
+            deviceName: printOptions.printer || '',
+            copies: printOptions.copies || 1,
+            duplexMode: printOptions.duplex === 'duplex' ? 'longEdge' : 'simplex'
           },
           (success, errorType) => {
-            // 关闭打印窗口（无论成功失败）
+            // 关闭窗口
             if (printWin && !printWin.isDestroyed()) {
               printWin.close()
               printWin = null
             }
 
-            // 返回打印结果
             if (success) {
               resolve({ success: true, message: '打印成功' })
             } else {
@@ -307,13 +343,11 @@ app.whenReady().then(() => {
         )
       })
     } catch (error) {
-      // 关闭打印窗口（如果存在）
+      // 异常处理：关闭窗口并返回错误
       if (printWin && !printWin.isDestroyed()) {
         printWin.close()
         printWin = null
       }
-
-      // 返回错误信息
       return { success: false, error: error.message }
     }
   })
@@ -328,6 +362,7 @@ app.whenReady().then(() => {
       if (anyWin) {
         // 调用异步方法获取打印机列表，需要await
         const printers = await anyWin.webContents.getPrintersAsync()
+        console.log(printers)
         // 格式化返回数据（只保留需要的字段）
         return printers.map((printer) => ({
           name: printer.name, // 打印机名称（用于指定打印设备）
