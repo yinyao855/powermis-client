@@ -2,11 +2,18 @@
   <div class="pdf-reader">
     <div class="pdf-toolbar">
       <span class="pdf-title">PDF阅读器</span>
-      <button v-if="fileUrl && !errorMessage" class="print-btn" @click="handlePrint">打印</button>
+      <button v-if="fileUrl && !errorMessage && !isLoading" class="print-btn" @click="handlePrint">
+        打印
+      </button>
     </div>
     <div class="param-info" :class="{ 'no-content': !fileUrl || errorMessage }">
+      <!-- 加载状态显示 -->
+      <div v-if="isLoading" class="loading-tip">
+        <div class="loading-icon">⏳</div>
+        <div class="loading-text">正在加载PDF文件...</div>
+      </div>
       <!-- 错误信息显示（优先显示事件传递的错误） -->
-      <div v-if="errorMessage" class="error-tip">
+      <div v-else-if="errorMessage" class="error-tip">
         <div class="error-icon">⚠️</div>
         <div class="error-text">{{ errorMessage }}</div>
       </div>
@@ -16,12 +23,11 @@
         <div class="empty-text">暂无可显示的PDF文件</div>
       </div>
     </div>
-    <div class="pdf-container" :class="{ 'no-content': !fileUrl || errorMessage }">
+    <div class="pdf-container" :class="{ 'no-content': !fileUrl || errorMessage || isLoading }">
       <iframe
-        v-if="fileUrl && !errorMessage"
+        v-if="fileUrl && !errorMessage && !isLoading"
         ref="pdfIframe"
         :src="iframeSrc"
-        frameborder="0"
         class="pdf-iframe"
         allowfullscreen
       ></iframe>
@@ -43,6 +49,8 @@ const route = useRoute()
 const fileUrl = ref('')
 // 存储错误信息（来自主进程的事件）
 const errorMessage = ref('')
+// 存储加载状态
+const isLoading = ref(false)
 const showPrintDialog = ref(false)
 
 // 计算iframe的PDF查看器路径
@@ -70,14 +78,13 @@ async function onPrint(params) {
       const printResult = await ipcRenderer.invoke('silent-print', fileUrl.value, params)
 
       // 根据返回结果显示提示
-      if (!printResult.success) {
-        // 打印失败时显示错误信息
-        alert(`打印失败：${printResult.error}`)
-      } else {
-        // 可选：打印成功时也可以显示提示
-        // alert(printResult.message);
+      if (printResult.success) {
+        alert(printResult.message)
         // 关闭打印对话框
         showPrintDialog.value = false
+      } else {
+        // 打印失败时显示错误信息
+        alert(`打印失败：${printResult.error}`)
       }
     } catch (err) {
       // 捕获调用过程中的异常（如接口调用失败）
@@ -92,13 +99,21 @@ async function onPrint(params) {
 // 处理主进程发送的pdf-load事件（加载新PDF）
 function handlePdfLoad(_event, localFileUrl) {
   errorMessage.value = '' // 清空错误
+  isLoading.value = false // 加载完成
   fileUrl.value = localFileUrl // 更新PDF路径
 }
 
 // 处理主进程发送的pdf-error事件（显示错误）
 function handlePdfError(_event, message) {
   errorMessage.value = message // 显示错误信息
+  isLoading.value = false // 加载完成（即使是错误）
   fileUrl.value = '' // 清空PDF路径（避免错误时仍显示旧内容）
+}
+
+// 处理主进程发送的pdf-loading事件（开始加载PDF）
+function handlePdfLoading() {
+  isLoading.value = true // 开始加载
+  errorMessage.value = '' // 清空错误信息
 }
 
 // 组件挂载时注册事件监听
@@ -111,6 +126,7 @@ onMounted(() => {
   if (ipcRenderer) {
     ipcRenderer.on('pdf-load', handlePdfLoad)
     ipcRenderer.on('pdf-error', handlePdfError)
+    ipcRenderer.on('pdf-loading', handlePdfLoading)
   }
 })
 
@@ -119,6 +135,7 @@ onUnmounted(() => {
   if (ipcRenderer) {
     ipcRenderer.removeListener('pdf-load', handlePdfLoad)
     ipcRenderer.removeListener('pdf-error', handlePdfError)
+    ipcRenderer.removeListener('pdf-loading', handlePdfLoading)
   }
 })
 </script>
@@ -203,9 +220,10 @@ onUnmounted(() => {
   display: block;
   background: #222;
 }
-/* 空内容和错误提示美化 */
+/* 空内容、错误提示和加载提示美化 */
 .empty-tip,
-.error-tip {
+.error-tip,
+.loading-tip {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -234,5 +252,26 @@ onUnmounted(() => {
   font-size: 17px;
   font-weight: 500;
   color: #f44336;
+}
+
+.loading-icon {
+  font-size: 48px;
+  margin-bottom: 10px;
+  animation: spin 2s linear infinite;
+}
+
+.loading-text {
+  font-size: 17px;
+  font-weight: 500;
+  color: #2196f3;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 </style>

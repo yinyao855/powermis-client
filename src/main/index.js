@@ -69,10 +69,13 @@ async function displayPdfInMainWindow(file_url, file_key) {
   console.log('[displayPdfInMainWindow] file_url:', file_url)
   console.log('[displayPdfInMainWindow] file_key:', file_key)
 
+  // 发送开始加载事件
+  mainWindow.webContents.send('pdf-loading')
+
   // 主进程下载并解密PDF，生成本地临时文件
   let localFileUrl = ''
   try {
-    const response = await fetch(file_url)
+    const response = await fetch(file_url, {})
     const buffer = await response.buffer()
     const decryptedBuffer = decryptPdf(buffer, file_key)
     const tempPath = path.join(os.tmpdir(), `powermis_${Date.now()}.pdf`)
@@ -257,9 +260,9 @@ app.whenReady().then(() => {
         }
 
         const cleanup = () => {
-          ipcMain.removeListener('pdf-loaded', onPdfLoaded)
-          ipcMain.removeListener('pdf-load-error', onPdfLoadError)
-          printWin.webContents.removeListener('did-fail-load', onPageLoadFail)
+          ipcMain.off('pdf-loaded', onPdfLoaded)
+          ipcMain.off('pdf-load-error', onPdfLoadError)
+          printWin.webContents.off('did-fail-load', onPageLoadFail)
           clearTimeout(timeoutTimer)
         }
 
