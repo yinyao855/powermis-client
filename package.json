@@ -4,6 +4,7 @@
   "description": "PowerMIS PDF Reader",
   "main": "./out/main/index.js",
   "author": "PowerMIS",
+  "email": "yinyaohh@163.com",
   "homepage": "https://electron-vite.org",
   "scripts": {
     "format": "prettier --write .",
