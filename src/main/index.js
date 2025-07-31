@@ -48,10 +48,9 @@ function createWindow() {
   loadMainInterface()
 
   // 禁用开发者工具
-  // mainWindow.webContents.on('devtools-opened', () => {
-  //   mainWindow.webContents.closeDevTools()
-  // })
-  mainWindow.webContents.openDevTools()
+  mainWindow.webContents.on('devtools-opened', () => {
+    mainWindow.webContents.closeDevTools()
+  })
 }
 
 // 加载主界面（无PDF状态）

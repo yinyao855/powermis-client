@@ -55,9 +55,19 @@
             <div class="ocr-loading-spinner"></div>
             <div class="ocr-loading-text">正在识别中...</div>
           </div>
-          <div v-else class="ocr-text" v-text="ocrText"></div>
+          <div v-else class="ocr-text-container">
+            <div class="ocr-text" v-text="ocrText"></div>
+          </div>
         </div>
         <div class="ocr-dialog-footer">
+          <button
+            v-if="ocrText && ocrText !== '未识别到文字' && !ocrText.startsWith('识别失败')"
+            class="ocr-copy-btn"
+            title="复制到剪贴板"
+            @click="copyToClipboard"
+          >
+            📋 复制
+          </button>
           <button class="ocr-dialog-btn" @click="closeOcrDialog">确定</button>
         </div>
       </div>
@@ -172,25 +182,33 @@ const screenshot = async () => {
     level: 99,
     completeCallback: async () => {
       // 显示成功消息
-      showMessage('截图成功')
+      alert('截图成功')
     },
     triggerCallback
   })
 }
 
-// 显示消息提示
-function showMessage(message) {
-  const messageEl = document.createElement('div')
-  messageEl.className = 'message-toast'
-  messageEl.textContent = message
-  document.body.appendChild(messageEl)
-
-  // 2秒后自动移除
-  setTimeout(() => {
-    if (messageEl.parentNode) {
-      messageEl.parentNode.removeChild(messageEl)
+// 复制到剪贴板
+async function copyToClipboard() {
+  try {
+    await navigator.clipboard.writeText(ocrText.value)
+    alert('复制成功')
+  } catch (error) {
+    console.error('复制失败:', error)
+    // 降级方案：使用传统方法
+    try {
+      const textArea = document.createElement('textarea')
+      textArea.value = ocrText.value
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      alert('复制成功')
+    } catch (fallbackError) {
+      console.error('降级复制也失败:', fallbackError)
+      alert('复制失败')
     }
-  }, 2000)
+  }
 }
 
 const getDesktopCapturerSource = async () => {
@@ -469,7 +487,7 @@ onUnmounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 99999; /* 提高层级，确保在所有元素之上 */
 }
 
 .ocr-dialog {
@@ -479,6 +497,7 @@ onUnmounted(async () => {
   width: 500px;
   max-width: 90vw;
   max-height: 80vh;
+  min-height: 400px;
   display: flex;
   flex-direction: column;
 }
@@ -523,7 +542,6 @@ onUnmounted(async () => {
 .ocr-dialog-content {
   padding: 20px 24px;
   flex: 1;
-  overflow-y: auto;
   min-height: 200px;
   max-height: 400px;
 }
@@ -551,12 +569,40 @@ onUnmounted(async () => {
   font-size: 16px;
 }
 
+.ocr-text-container {
+  width: 100%;
+}
+
 .ocr-text {
   white-space: pre-line;
   line-height: 1.6;
   color: #333;
   font-size: 14px;
   word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 8px; /* 为滚动条留出空间 */
+}
+
+.ocr-copy-btn {
+  padding: 8px 16px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  margin-right: 12px;
+}
+
+.ocr-copy-btn:hover {
+  background: #218838;
+}
+
+.ocr-copy-btn:active {
+  background: #1e7e34;
 }
 
 .ocr-dialog-footer {
@@ -564,6 +610,8 @@ onUnmounted(async () => {
   border-top: 1px solid #eee;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
 }
 
 .ocr-dialog-btn {
@@ -582,32 +630,6 @@ onUnmounted(async () => {
   background: #0056b3;
 }
 
-/* 消息提示样式 */
-.message-toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #4caf50;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  z-index: 10001;
-  font-size: 14px;
-  animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
 /* 截图工具面板样式 */
 :global(#toolPanel),
 :global(#optionPanel) {
@@ -624,7 +646,7 @@ onUnmounted(async () => {
   background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4IiB2aWV3Qm94PSIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMxMWI2ZjUiIGQ9Ik05Ljk1MiA2LjI1Yy0uNDMgMC0uODMyIDAtMS4xNi4wNDljLS4zNzEuMDU1LS43NTIuMTg2LTEuMDU3LjUyNWMtLjI5NC4zMjctLjM5OC43MTctLjQ0MyAxLjA4OWMtLjA0Mi4zNDgtLjA0Mi43OC0uMDQyIDEuMjY3di41N2EuNzUuNzUgMCAwIDAgMS41IDB2LS41MjhjMC0uNTQzLjAwMS0uODgyLjAzMS0xLjEyOWEuOTc2Ljk3NiAwIDAgMSAuMDQ2LS4yMmEuMTMzLjEzMyAwIDAgMSAuMDIzLS4wNDZoLjAwMWMuMDAxLS4wMDIuMDAyLS4wMDMuMDExLS4wMDhhLjU5Mi41OTIgMCAwIDEgLjE1Mi0uMDM3Yy4yMDQtLjAzLjQ5MS0uMDMyLjk4Ni0uMDMyaDEuMjV2OC41SDkuNWEuNzUuNzUgMCAwIDAgMCAxLjVIMTVhLjc1Ljc1IDAgMCAwIDAtMS41aC0yLjI1di04LjVIMTRjLjQ5NSAwIC43ODIuMDAyLjk4Ni4wMzJjLjA5Mi4wMTQuMTM1LjAzLjE1Mi4wMzdsLjAxMS4wMDd2LjAwMWEuMTMuMTMgMCAwIDEgLjAyNC4wNDVjLjAxNC4wMzguMDMyLjEwNS4wNDYuMjIxYy4wMy4yNDcuMDMxLjU4Ni4wMzEgMS4xM3YuNTI3YS43NS43NSAwIDAgMCAxLjUgMHYtLjU3YzAtLjQ4OCAwLS45MTktLjA0Mi0xLjI2N2MtLjA0NS0uMzcyLS4xNDktLjc2Mi0uNDQzLTEuMDljLS4zMDUtLjMzOC0uNjg2LS40NjktMS4wNTctLjUyNGMtLjMyOC0uMDUtLjczLS4wNS0xLjE2LS4wNDl6Ii8+PHBhdGggZmlsbD0iIzExYjZmNSIgZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMTEuOTQzIDEuMjVjLTIuMzA5IDAtNC4xMTggMC01LjUzLjE5Yy0xLjQ0NC4xOTQtMi41ODQuNi0zLjQ3OSAxLjQ5NGMtLjg5NS44OTUtMS4zIDIuMDM1LTEuNDk0IDMuNDhjLS4xOSAxLjQxMS0uMTkgMy4yMi0uMTkgNS41Mjl2LjExNGMwIDIuMzA5IDAgNC4xMTguMTkgNS41M2MuMTk0IDEuNDQ0LjYgMi41ODQgMS40OTQgMy40NzljLjg5NS44OTUgMi4wMzUgMS4zIDMuNDggMS40OTRjMS40MTEuMTkgMy4yMi4xOSA1LjUyOS4xOWguMTE0YzIuMzA5IDAgNC4xMTggMCA1LjUzLS4xOWMxLjQ0NC0uMTk0IDIuNTg0LS42IDMuNDc5LTEuNDk0Yy44OTUtLjg5NSAxLjMtMi4wMzUgMS40OTQtMy40OGMuMTktMS40MTEuMTktMy4yMi4xOS01LjUyOXYtLjExNGMwLTIuMzA5IDAtNC4xMTgtLjE5LTUuNTNjLS4xOTQtMS40NDQtLjYtMi41ODQtMS40OTQtMy40NzljLS44OTUtLjg5NS0yLjAzNS0xLjMtMy40OC0xLjQ5NGMtMS40MTEtLjE5LTMuMjItLjE5LTUuNTI5LS4xOXpNMy45OTUgMy45OTVjLjU3LS41NyAxLjM0LS44OTcgMi42MTktMS4wNjljMS4zLS4xNzQgMy4wMDgtLjE3NiA1LjM4Ni0uMTc2czQuMDg2LjAwMiA1LjM4Ni4xNzZjMS4yNzkuMTcyIDIuMDUuNSAyLjYyIDEuMDY5Yy41NjkuNTcuODk2IDEuMzQgMS4wNjggMi42MTljLjE3NCAxLjMuMTc2IDMuMDA4LjE3NiA1LjM4NnMtLjAwMiA0LjA4Ni0uMTc2IDUuMzg2Yy0uMTcyIDEuMjc5LS41IDIuMDUtMS4wNjkgMi42MmMtLjU3LjU2OS0xLjM0Ljg5Ni0yLjYxOSAxLjA2OGMtMS4zLjE3NC0zLjAwOC4xNzYtNS4zODYuMTc2cy00LjA4Ni0uMDAyLTUuMzg2LS4xNzZjLTEuMjc5LS4xNzItMi4wNS0uNS0yLjYyLTEuMDY5Yy0uNTY5LS41Ny0uODk2LTEuMzQtMS4wNjgtMi42MTljLS4xNzQtMS4zLS4xNzYtMy4wMDgtLjE3Ni01LjM4NnMuMDAyLTQuMDg2LjE3Ni01LjM4NmMuMTcyLTEuMjc5LjUtMi4wNSAxLjA2OS0yLjYyIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiLz48L3N2Zz4=);
 }
 
-/* 确保截图工具面板在顶层显示 */
+/* 确保截图工具面板在顶层显示，但低于OCR对话框 */
 :global(#toolPanel) {
   z-index: 10000 !important;
 }
