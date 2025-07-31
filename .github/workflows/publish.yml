@@ -6,6 +6,9 @@ on:
     tags:
       - v*.*.*
 
+permissions:
+  contents: write  # 允许创建和上传Releases
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
