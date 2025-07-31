@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, webContents, desktopCapturer } from 'electron'
 import path, { join, resolve } from 'path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -125,6 +125,29 @@ function handleCustomProtocol(url) {
     console.error('[handleCustomProtocol] 处理powermis协议失败:', error)
   }
 }
+
+// 修复electron18.0.0-beta.5 之后版本的BUG: 无法获取当前程序页面视频流
+const selfWindows = async () =>
+  await Promise.all(
+    webContents
+      .getAllWebContents()
+      .filter((item) => {
+        const win = BrowserWindow.fromWebContents(item)
+        return win && win.isVisible()
+      })
+      .map(async (item) => {
+        const win = BrowserWindow.fromWebContents(item)
+        const thumbnail = await win?.capturePage()
+        // 当程序窗口打开DevTool的时候  也会计入
+        return {
+          name: win?.getTitle() + (item.devToolsWebContents === null ? '' : '-dev'), // 给dev窗口加上后缀
+          id: win?.getMediaSourceId(),
+          thumbnail,
+          display_id: '',
+          appIcon: null
+        }
+      })
+  )
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
@@ -374,6 +397,14 @@ app.whenReady().then(() => {
       console.error('获取打印机列表失败：', error)
       return [] // 出错时返回空列表，避免渲染进程报错
     }
+  })
+
+  // 获取设备窗口信息
+  ipcMain.handle('send-desktop-capturer_source', async () => {
+    return [
+      ...(await desktopCapturer.getSources({ types: ['window', 'screen'] })),
+      ...(await selfWindows())
+    ]
   })
 
   createWindow()

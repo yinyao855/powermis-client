@@ -5,6 +5,9 @@
       <button v-if="fileUrl && !errorMessage && !isLoading" class="print-btn" @click="handlePrint">
         打印
       </button>
+      <button v-if="fileUrl && !errorMessage && !isLoading" class="print-btn" @click="doScreenShot">
+        OCR 识别
+      </button>
     </div>
     <div class="param-info" :class="{ 'no-content': !fileUrl || errorMessage }">
       <!-- 加载状态显示 -->
@@ -40,6 +43,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import PrintDialog from './PrintDialog.vue'
+import ScreenShot from 'js-web-screen-shot'
 
 // 引入ipcRenderer（从Electron预加载脚本获取）
 const { ipcRenderer } = window.electron || {}
@@ -68,6 +72,56 @@ const iframeSrc = computed(() => {
 // 处理打印按钮点击
 function handlePrint() {
   showPrintDialog.value = true
+}
+
+// 处理ocr识别
+const doScreenShot = async () => {
+  // 下面这两块自己考虑
+  const sources = await getDesktopCapturerSource() // 这里返回的是设备上的所有窗口信息
+  // 这里可以对`sources`数组下面id进行判断  找到当前的electron窗口  这里为了简单直接拿了第一个
+  // console.log(sources)
+  const stream = await getInitStream(sources.filter((e) => e.name === 'PowerMIS')[0])
+
+  new ScreenShot({
+    enableWebRtc: true, // 启用webrtc
+    screenFlow: stream, // 传入屏幕流数据
+    level: 999
+  })
+}
+
+const getDesktopCapturerSource = async () => {
+  return await ipcRenderer.invoke('send-desktop-capturer_source', [])
+}
+
+// 获取指定id设备的视频流
+function getInitStream(source, audio) {
+  return new Promise((resolve) => {
+    // 获取指定窗口的媒体流
+    // 此处遵循的是webRTC的接口类型  暂时TS类型没有支持  只能断言成any
+    navigator.mediaDevices
+      .getUserMedia({
+        audio: audio
+          ? {
+              mandatory: {
+                chromeMediaSource: 'desktop'
+              }
+            }
+          : false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: source.id
+          }
+        }
+      })
+      .then((stream) => {
+        resolve(stream)
+      })
+      .catch((error) => {
+        console.log(error)
+        resolve(null)
+      })
+  })
 }
 
 // 处理打印确认

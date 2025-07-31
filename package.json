@@ -22,8 +22,8 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "electron-icon-builder": "^2.0.1",
+    "js-web-screen-shot": "^1.9.9-rc.27",
     "node-fetch": "^2.7.0",
-    "pdfjs-dist": "^5.4.54",
     "vue-router": "^4.0.0"
   },
   "devDependencies": {
