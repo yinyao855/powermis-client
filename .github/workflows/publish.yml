@@ -23,7 +23,6 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: 20
-          cache: 'npm'
 
       # 仅在Linux（Ubuntu）上安装Snapcraft
       - name: Install Snapcraft (Linux)
