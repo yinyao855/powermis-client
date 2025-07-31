@@ -1,8 +1,6 @@
 name: Publish PowerMIS Reader
 on:
   push:
-    branches:
-      - main
     tags:
       - v*.*.*
 
