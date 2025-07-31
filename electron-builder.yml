@@ -30,6 +30,7 @@ dmg:
 linux:
   target:
     - AppImage
+    - snap
     - deb
   maintainer: powermis.org
   category: Utility
