@@ -9,8 +9,10 @@ import fetch from 'node-fetch'
 
 let mainWindow
 let printWin = null // 隐藏的打印窗口
-// 保存浏览器唤起时的初始参数
-// let initialProtocolParams = null
+// 保存临时PDF文件路径，用于退出时清理
+let tempPdfFiles = new Set()
+// 保存待处理的协议URL（当应用启动时收到协议参数）
+let pendingProtocolUrl = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -29,16 +31,13 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    // 窗口准备好后，检查是否有待处理的协议参数
+    if (pendingProtocolUrl) {
+      console.log('[ready-to-show] 处理待处理的协议参数:', pendingProtocolUrl)
+      handleCustomProtocol(pendingProtocolUrl)
+      pendingProtocolUrl = null
+    }
   })
-
-  // 页面加载完成后，处理暂存的协议参数
-  // mainWindow.webContents.on('did-finish-load', () => {
-  //   if (initialProtocolParams) {
-  //     const { file_url, file_key } = initialProtocolParams;
-  //     displayPdfInMainWindow(file_url, file_key);
-  //     initialProtocolParams = null; // 清空参数，避免重复处理
-  //   }
-  // });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -80,6 +79,8 @@ async function displayPdfInMainWindow(file_url, file_key) {
     const decryptedBuffer = decryptPdf(buffer, file_key)
     const tempPath = path.join(os.tmpdir(), `powermis_${Date.now()}.pdf`)
     fs.writeFileSync(tempPath, decryptedBuffer)
+    // 记录临时文件路径，用于退出时清理
+    tempPdfFiles.add(tempPath)
     localFileUrl = 'file://' + tempPath
     console.log('[displayPdfInMainWindow] localFileUrl:', localFileUrl)
   } catch (err) {
@@ -112,13 +113,6 @@ function handleCustomProtocol(url) {
       console.log('[handleCustomProtocol] file_url:', file_url)
       console.log('[handleCustomProtocol] file_key:', file_key)
       if (file_url && file_key) {
-        // 检查主窗口是否已加载（页面 + 渲染进程组件就绪）
-        // if (mainWindow?.webContents?.isLoaded()) {
-        //   displayPdfInMainWindow(file_url, file_key);
-        // } else {
-        //   // 暂存参数，等待页面加载完成后处理
-        //   initialProtocolParams = { file_url, file_key };
-        // }
         displayPdfInMainWindow(file_url, file_key)
       } else {
         showNoPdfMessage()
@@ -165,6 +159,14 @@ app.whenReady().then(() => {
         mainWindow.focus()
       }
     })
+  }
+
+  // 处理应用启动时的协议参数（当应用未运行时从浏览器唤起）
+  const protocolUrl = process.argv.find((arg) => arg.startsWith('powermis://'))
+  if (protocolUrl) {
+    console.log('[app.whenReady] 启动时收到协议参数:', protocolUrl)
+    // 保存待处理的协议URL，等待窗口准备好后处理
+    pendingProtocolUrl = protocolUrl
   }
 
   app.on('open-url', (event, url) => {
@@ -385,4 +387,20 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// 应用退出时清理临时文件
+app.on('before-quit', () => {
+  console.log('[before-quit] 清理临时PDF文件...')
+  tempPdfFiles.forEach((filePath) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath)
+        console.log(`[before-quit] 已删除临时文件: ${filePath}`)
+      }
+    } catch (error) {
+      console.error(`[before-quit] 删除临时文件失败: ${filePath}`, error)
+    }
+  })
+  tempPdfFiles.clear()
 })

@@ -13,7 +13,7 @@
 
 ### 前置要求
 
-- Node.js 16+
+- Node.js 20+
 - npm 或 yarn
 
 ### 安装依赖
