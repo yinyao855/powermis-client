@@ -17,17 +17,7 @@
           <select v-model="printer" :disabled="printers.length === 0" class="form-control">
             <!-- 有打印机时渲染列表 -->
             <option v-for="p in printers" :key="p.name" :value="p.name">
-              {{ p.name }}
-              <!-- 状态提示（可选，若主进程返回了状态） -->
-              <span
-                class="printer-status"
-                :class="{
-                  online: p.statusText === '在线',
-                  offline: p.statusText === '离线'
-                }"
-              >
-                ({{ p.statusText }})
-              </span>
+              {{ p.displayName || p.name }}
             </option>
             <!-- 无打印机时兜底 -->
             <option v-if="printers.length === 0" value="" disabled>无可用打印机</option>
@@ -80,9 +70,8 @@ onMounted(async () => {
     try {
       isLoadingPrinters.value = true
       printers.value = await window.electron.ipcRenderer.invoke('get-printers')
-      // 优先选默认打印机
-      const defaultPrinter = printers.value.find((p) => p.isDefault)
-      printer.value = defaultPrinter ? defaultPrinter.name : printers.value[0]?.name || ''
+      // 选择第一个打印机作为默认
+      printer.value = printers.value[0]?.name || ''
     } catch (err) {
       printerError.value = `获取打印机失败：${err.message || '未知错误'}`
       console.error('获取打印机列表失败：', err)
@@ -110,25 +99,6 @@ function onPrint() {
     duplex: duplex.value
   })
   emit('close')
-}
-
-async function testPrintLoad() {
-  if (window.electron && window.electron.ipcRenderer) {
-    const fileUrl = 'https://arxiv.org/pdf/2507.22052.pdf' // 测试用的PDF文件URL;
-    try {
-      // 传递 fileUrl 给主进程
-      const result = await window.electron.ipcRenderer.invoke('test-print-load', fileUrl)
-      if (result.success) {
-        console.log('测试打印加载成功')
-      } else {
-        console.error('测试打印加载失败：', result.error)
-      }
-    } catch (err) {
-      console.error('测试打印加载失败：', err)
-    }
-  } else {
-    console.warn('无法连接到打印服务')
-  }
 }
 </script>
 
@@ -194,19 +164,6 @@ async function testPrintLoad() {
 }
 .form-control:focus {
   border-color: #409eff;
-}
-
-/* 打印机状态提示（可选） */
-.printer-status {
-  font-size: 12px;
-  color: #999;
-  margin-left: 4px;
-}
-.printer-status.online {
-  color: #4caf50; /* 在线绿色 */
-}
-.printer-status.offline {
-  color: #f44336; /* 离线红色 */
 }
 
 /* 按钮行 */

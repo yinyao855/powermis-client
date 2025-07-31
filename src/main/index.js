@@ -1,11 +1,10 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join, resolve } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import path, { join, resolve } from 'path'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { decryptPdf } from './decrypt.js'
 import fs from 'fs'
 import os from 'os'
-import path from 'path'
 import fetch from 'node-fetch'
 
 let mainWindow
@@ -13,22 +12,11 @@ let printWin = null // 隐藏的打印窗口
 // 保存浏览器唤起时的初始参数
 // let initialProtocolParams = null
 
-// 辅助函数：将打印机状态码转为直观文本（可选，根据需要添加）
-function getPrinterStatusText(statusCode) {
-  const statusMap = {
-    0: '在线',
-    1: '离线',
-    2: '正在打印',
-    3: '需要注意'
-    // 其他状态码可参考Electron文档补充
-  }
-  return statusMap[statusCode] || `未知状态(${statusCode})`
-}
-
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200, // 使用较大的默认尺寸以适应PDF阅读
-    height: 800,
+    width: 800, // 使用较大的默认尺寸以适应PDF阅读
+    height: 600,
+    minWidth: 400,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -60,8 +48,10 @@ function createWindow() {
   // 初始加载主界面
   loadMainInterface()
 
-  // 打开开发者工具
-  // mainWindow.webContents.openDevTools()
+  // 禁用开发者工具
+  mainWindow.webContents.on('devtools-opened', () => {
+    mainWindow.webContents.closeDevTools()
+  })
 }
 
 // 加载主界面（无PDF状态）
@@ -182,52 +172,23 @@ app.whenReady().then(() => {
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
-  })
 
-  // 处理渲染进程消息
-  ipcMain.on('ping', () => console.log('pong'))
+    // 禁用F12和其他开发者工具快捷键
+    window.webContents.on('before-input-event', (event, input) => {
+      if (
+        input.key === 'F12' ||
+        (input.control && input.key === 'Shift' && input.key === 'I') ||
+        (input.control && input.key === 'Shift' && input.key === 'C') ||
+        (input.control && input.key === 'U')
+      ) {
+        event.preventDefault()
+      }
+    })
 
-  // 测试打印窗口加载
-  ipcMain.handle('test-print-load', async (event, fileUrl) => {
-    // 接收fileUrl参数
-    console.log('测试打印窗口加载, fileUrl:', fileUrl)
-    try {
-      printWin = new BrowserWindow({
-        width: 900,
-        height: 1200,
-        show: true, // 测试
-        webPreferences: {
-          sandbox: false,
-          webSecurity: false, // 允许加载本地文件
-          allowRunningInsecureContent: true
-        }
-      })
-
-      // 加载打印页面（包含PDF内容），使用传入的fileUrl
-      let printPageUrl = `file://${path.join(__dirname, '../renderer/print.html')}?file=${encodeURIComponent(fileUrl)}`
-
-      // 等待页面加载完成（使用Promise封装事件）
-      await new Promise((resolve, reject) => {
-        // 页面加载成功
-        printWin.webContents.on('did-finish-load', resolve)
-
-        // 页面加载失败
-        printWin.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
-          reject(new Error(`页面加载失败：${errorDescription}（错误码：${errorCode}）`))
-        })
-
-        // 加载页面（捕获加载错误）
-        printWin.loadURL(printPageUrl).catch(reject)
-      })
-
-      // 页面加载完成后销毁页面
-      // printWin.close();
-      // printWin = null; // 重置，避免重复使用
-      return { success: true } // 返回成功信息，供渲染进程判断
-    } catch (error) {
-      console.error('测试打印加载失败:', error)
-      return { success: false, error: error.message } // 返回错误信息
-    }
+    // 禁用右键菜单中的开发者工具
+    window.webContents.on('context-menu', (event) => {
+      event.preventDefault()
+    })
   })
 
   // 处理静默打印请求（渲染进程调用）
@@ -254,7 +215,7 @@ app.whenReady().then(() => {
       printWin = new BrowserWindow({
         width: 900,
         height: 1200,
-        show: true, // 为false不知道为什么有问题
+        show: true, // 应该为false, 但有bug
         autoHideMenuBar: true,
         webPreferences: {
           preload: join(__dirname, '../preload/index.js'),
@@ -265,8 +226,10 @@ app.whenReady().then(() => {
         }
       })
 
-      // 打开开发者工具用于调试
-      // printWin.webContents.openDevTools()
+      // 禁用打印窗口的开发者工具
+      printWin.webContents.on('devtools-opened', () => {
+        printWin.webContents.closeDevTools()
+      })
 
       // 加载打印页面
       const printPageUrl = `file://${path.join(__dirname, '../renderer/print.html')}?file=${encodeURIComponent(fileUrl)}`
@@ -327,8 +290,6 @@ app.whenReady().then(() => {
             deviceName: printOptions.printer || '',
             copies: printOptions.copies || 1,
             duplexMode: printOptions.duplex === 'duplex' ? 'longEdge' : 'simplex',
-            pageRanges: '', // 打印所有页面
-            printSelectionOnly: false, // 不限制选择区域
             // landscape: false, // 纵向打印
             margins: {
               marginType: 'printableArea'
@@ -369,13 +330,38 @@ app.whenReady().then(() => {
       if (anyWin) {
         // 调用异步方法获取打印机列表，需要await
         const printers = await anyWin.webContents.getPrintersAsync()
-        console.log(printers)
-        // 格式化返回数据（只保留需要的字段）
-        return printers.map((printer) => ({
+        // 过滤掉Windows虚拟打印机
+        const virtualPrinters = [
+          'Microsoft Print to PDF',
+          'Microsoft XPS Document Writer',
+          'OneNote',
+          'Fax',
+          'PDF',
+          'XPS'
+        ]
+
+        const filteredPrinters = printers.filter((printer) => {
+          const printerName = (printer.name || printer.displayName || '').toLowerCase()
+
+          // 检查是否包含虚拟打印机关键词
+          const isVirtual = virtualPrinters.some((virtual) =>
+            printerName.includes(virtual.toLowerCase())
+          )
+
+          // 检查是否是Microsoft的虚拟打印机
+          const isMicrosoftVirtual =
+            printerName.includes('microsoft') &&
+            (printerName.includes('pdf') ||
+              printerName.includes('xps') ||
+              printerName.includes('onenote'))
+
+          return !isVirtual && !isMicrosoftVirtual
+        })
+
+        // 格式化返回数据
+        return filteredPrinters.map((printer) => ({
           name: printer.name, // 打印机名称（用于指定打印设备）
-          isDefault: printer.isDefault, // 是否默认打印机
-          status: printer.status, // 状态码（0=在线，1=离线等，根据Electron定义）
-          statusText: getPrinterStatusText(printer.status) // 状态文本（可选，更直观）
+          displayName: printer.displayName || printer.name // 显示名称
         }))
       }
       return [] // 无可用窗口时返回空列表
