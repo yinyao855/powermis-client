@@ -1,10 +1,11 @@
 import crypto from 'crypto'
 
+// 固定密钥
+const FIXED_KEY = 'HqQ1lktHBygmbnrQ'
+
 // AES解密函数
 function decrypt(data, key) {
-  // key = 'HqQ1lktHBygmbnrQ'
   const keyBuffer = Buffer.from(key, 'utf8')
-  // const keyHash = crypto.createHash('md5').update(keyBuffer).digest()
   const algorithm = 'aes-128-ecb'
   // ECB模式iv必须为null
   const decipher = crypto.createDecipheriv(algorithm, keyBuffer, null)
@@ -28,13 +29,28 @@ export function decryptPdf(pdfBuffer, fileKey) {
     const encrypted = buffer.slice(4, 4 + encryptedSize)
     // 读取剩余的数据
     const tail = buffer.slice(4 + encryptedSize)
-    // 解密数据
-    console.log(encryptedSize, fileKey)
-    const decrypted = decrypt(encrypted, fileKey)
+
+    let decrypted
+
+    // 第一次解密：使用传入的fileKey
+    try {
+      decrypted = decrypt(encrypted, fileKey)
+    } catch (firstError) {
+      console.log('使用fileKey解密失败，尝试使用固定密钥', firstError.message)
+
+      // 第二次解密：使用固定密钥
+      try {
+        decrypted = decrypt(encrypted, FIXED_KEY)
+      } catch (secondError) {
+        console.error('两次解密均失败', secondError.message)
+        throw new Error('PDF解密失败: 两次解密尝试均失败')
+      }
+    }
+
     // 组合解密后的数据和剩余数据
     return Buffer.concat([decrypted, tail])
   } catch (error) {
-    console.error('PDF解密失败:', error)
+    console.error('PDF解密过程出错:', error)
     throw new Error('PDF解密失败: ' + error.message)
   }
 }

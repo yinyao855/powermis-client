@@ -97,7 +97,7 @@ const showPrintDialog = ref(false)
 const ocrDialogVisible = ref(false)
 const ocrText = ref('')
 const ocrLoading = ref(false)
-let worker = null
+const worker = ref(null)
 
 // 计算iframe的PDF查看器路径
 const iframeSrc = computed(() => {
@@ -154,11 +154,11 @@ const screenshot = async () => {
 
       try {
         // 检查 worker 是否已初始化
-        if (!worker) {
+        if (!worker.value) {
           throw new Error('OCR 引擎未初始化，请稍后重试')
         }
 
-        const res = await worker.recognize(newCanvas)
+        const res = await worker.value.recognize(newCanvas)
         // 去除汉字间的空格
         ocrText.value = res.data.text.replace(
           /(?<=[\u4e00-\u9fa5\u3000-\u303F\uff00-\uffef]) +(?=[\u4e00-\u9fa5\u3000-\u303F\uff00-\uffef])/g,
@@ -309,7 +309,7 @@ onMounted(async () => {
   try {
     const prefix = import.meta.env.DEV ? '/' : './'
     console.log('正在初始化 OCR 引擎...')
-    worker = await createWorker('chi_sim', OEM.LSTM_ONLY, {
+    worker.value = await createWorker('chi_sim', OEM.LSTM_ONLY, {
       corePath: prefix + 'tesseract.js-core',
       langPath: prefix + '4.0.0_best_int',
       workerPath: prefix + 'worker.min.js'
@@ -327,7 +327,7 @@ onUnmounted(async () => {
     ipcRenderer.removeListener('pdf-error', handlePdfError)
     ipcRenderer.removeListener('pdf-loading', handlePdfLoading)
   }
-  await worker?.terminate()
+  await worker.value?.terminate()
 })
 </script>
 
